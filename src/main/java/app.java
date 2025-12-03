@@ -1,5 +1,7 @@
 import java.sql.*;
 import java.util.Scanner;
+//imported data source
+import org.apache.commons.dbcp2.BasicDataSource;
 
 public class app {
 
@@ -18,8 +20,18 @@ public class app {
         // Create scanner for user input
         Scanner myScanner = new Scanner(System.in);
 
-        try (Connection connection = DriverManager.getConnection(
-                "jdbc:mysql://localhost:3306/northwind", username, password)) {
+        //get the connection from the datasource
+        try (
+                //create the basic datasource
+                BasicDataSource basicDataSource = new BasicDataSource();
+        ){
+
+            //set configuration
+            basicDataSource.setUrl("jdbc:mysql://localhost:3306/northwind");
+            basicDataSource.setUsername(username);
+            basicDataSource.setPassword(password);
+
+
 
             while (true) {
                 System.out.println("""
@@ -29,7 +41,7 @@ public class app {
                         """);
 
                 switch (myScanner.nextInt()) {
-                    case 1 -> displayAllProducts(connection);
+                    case 1 -> displayAllProducts(basicDataSource);
                     case 0 -> {
                         System.out.println("Goodbye!");
                         System.exit(0);
@@ -44,25 +56,43 @@ public class app {
         }
     }
 
-    public static void displayAllProducts(Connection connection) {
-        String query = """
-                SELECT
-                    *
-                FROM
-                    Products
-                ORDER BY
-                    ProductName
-                """;
+    public static void displayAllProducts(BasicDataSource basicDataSource){
 
-        try (PreparedStatement preparedStatement = connection.prepareStatement(query);
-             ResultSet results = preparedStatement.executeQuery()) {
+        //we gots to try to run a query and get the results with a prepared statement
+        try(
+                //get a connection from the pool
+                Connection connection = basicDataSource.getConnection();
 
-            printResults(results);
+                //create the prepared statment using the passed in connection
+                PreparedStatement preparedStatement = connection.prepareStatement("""
+                        SELECT
+                            ProductName,
+                            UnitPrice,
+                            UnitsInStock,
+                            (UnitPrice * UnitsInStock) AS InventoryValue
+                        FROM
+                            Products
+                        ORDER BY
+                            ProductName
+                        """
 
-        } catch (SQLException e) {
-            System.out.println("Unable to get all products");
+                ))
+                {
+
+            try( ResultSet results = preparedStatement.executeQuery()){
+                //print the results
+                printResults(results);
+            }catch(SQLException e){
+                System.out.println("stuff hit the fan");
+            }
+
+
+
+        }catch (SQLException e){
+            System.out.println("Could not get all the products");
             System.exit(1);
         }
+
     }
 
     private static void printResults(ResultSet results) throws SQLException {
